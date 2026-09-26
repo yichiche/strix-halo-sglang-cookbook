@@ -12,7 +12,7 @@ Every script listed below has been run end to end on this machine.
 | Memory | 128GB LPDDR5X unified memory, BIOS split: **96GB VRAM** carve-out and ~30GB host RAM (+8GB swap) |
 | Storage | 1TB NVMe (Kingston OM8PGP41024Q-A0) |
 | OS | Ubuntu 24.04.5 LTS, kernel 7.0.x |
-| Container | Docker 29.8.1, image `rocm/sgl-dev:v0.5.20-rocm724-gfx1151-20260923` (ROCm 7.2.4) |
+| Container | Docker 29.8.1, image `rocm/sgl-dev:v0.5.20-rocm724-gfx1151-20260923` (ROCm 7.2.4) — see [Docker image](#docker-image) |
 
 Things to keep in mind on this platform:
 
@@ -32,12 +32,7 @@ Things to keep in mind on this platform:
 | [Wan2.2-TI2V-5B-Diffusers](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers) | Text/Image → Video | [`diffusion/wan/run_wan2.2.sh`](diffusion/wan/run_wan2.2.sh) (`WAN_MODEL=ti2v-5b`) | 704×1280, 49 frames, all resident | ~1 h per request | ~66.8 GB | ⚠️ Runs, not recommended |
 | [Qwen-Image-2.1](https://huggingface.co/Qwen) | Text → Image / Edit | [`diffusion/qwen-image/run_qwen_image_2.1.sh`](diffusion/qwen-image/run_qwen_image_2.1.sh) | 1024×1024, 40 steps, all resident | ~146 s | ~39.9 GB | ✅ Recommended |
 
-**About Wan2.2-TI2V-5B.** It fits in memory easily (~38GB resident), but it's too slow to be useful on gfx1151:
-
-- At 720p with 49 frames, one request keeps the GPU 100% busy for about an hour. The 2-step test finished; a 50-step run was still going after 47 minutes.
-- At the model's default 121 frames, it triggers a GPU hang and a full GPU reset.
-- The suspected bottleneck is the fp32 Wan2.2 VAE decode (conv3d on MIOpen).
-- Details and untested ideas are at the top of the script.
+Per-model notes (why these settings, memory breakdown, known issues) are in each folder's README: [`diffusion/wan/`](diffusion/wan/README.md), [`diffusion/qwen-image/`](diffusion/qwen-image/README.md).
 
 ### LLM
 
@@ -48,12 +43,18 @@ None verified yet. See [`llm/`](llm/).
 ```
 strix-halo-sglang-cookbook
 ├── diffusion
-│   ├── wan          # Wan2.2 text-to-video (A14B, TI2V-5B)
-│   └── qwen-image   # Qwen-Image text-to-image / editing
+│   ├── wan          # Wan2.2 text-to-video (A14B, TI2V-5B) + notes
+│   └── qwen-image   # Qwen-Image text-to-image / editing + notes
 ├── llm
 ├── run_docker.sh    # start the SGLang ROCm container
 └── README.md
 ```
+
+## Docker image
+
+Use a gfx1151 build of `rocm/sgl-dev`. **Only images dated 20260913 or later (tag suffix `-gfx1151-2026MMDD` ≥ `20260913`) ship the dependencies sglang's diffusion runtime (`sglang generate`) needs.** Older images can't run the diffusion recipes here.
+
+Tested: `rocm/sgl-dev:v0.5.19-rocm724-gfx1151-20260917` (Wan2.2 A14B) and `rocm/sgl-dev:v0.5.20-rocm724-gfx1151-20260923` (default in `run_docker.sh`). Override with `IMAGE=... bash run_docker.sh`.
 
 ## Quick start
 

@@ -4,6 +4,9 @@
 #
 #   bash run_docker.sh
 #   MODELS_DIR=/data/models CONTAINER_NAME=sglang bash run_docker.sh
+#
+# IMAGE must be a gfx1151 rocm/sgl-dev build dated 20260913 or later; older
+# images lack the dependencies for sglang's diffusion runtime.
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "$0")" && pwd)"

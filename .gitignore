@@ -1,3 +1,5 @@
 models/
 outputs/
 *.log
+llm_runs/
+tmp_output_gsm8k.txt

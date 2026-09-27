@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validate an LLM on gfx1151: launch server -> health -> chat -> accuracy -> decode speed -> shutdown.
-# Same server flags as run_llm_server.sh. Results go to llm_runs/<tag>_<time>/.
+# Same server flags as the per-model run_*.sh scripts. Results go to llm_runs/<tag>_<time>/.
 #
 #   MODEL=/path/to/checkpoint bash validate_llm.sh                 # chat + GSM8K 5-shot (100 q) + bs=1 speed
 #   MODEL=... MGSM_N=100 GSM_N=0 bash validate_llm.sh             # chat eval with thinking off (recommended for Qwen3.5)

@@ -18,7 +18,7 @@ Things to keep in mind on this platform:
 
 - **Host RAM is small (~30GB).** Offload modes that keep a host copy of a component (component offload, snapshot offload, pinned memory) run out of RAM quickly. Prefer keeping everything resident in the 96GB VRAM pool.
 - **No FlashAttention on gfx1151.** Use `--attention-backend torch_sdpa` (AOTriton).
-- **No FP8 or FP4 hardware.** For diffusion, sglang's FP8 linear uses `torch._scaled_mm`, which PyTorch on ROCm only supports on MI300+ (gfx94x/95x). For LLMs, block-FP8 checkpoints run through Triton kernels: they're accurate but slower than BF16. MXFP4 MoE needs the patch in [`llm/`](llm/README.md).
+- **No FP8 or FP4 hardware.** For diffusion, sglang's FP8 linear uses `torch._scaled_mm`, which PyTorch on ROCm only supports on MI300+ (gfx94x/95x). For LLMs, block-FP8 checkpoints run through Triton kernels: they're accurate but slower than BF16. MXFP4 MoE needs the patch in [`llm/qwen3.5-35b-a3b-mxfp4/`](llm/qwen3.5-35b-a3b-mxfp4/README.md).
 - **ROCm component-offload bug.** `RocmPlatform` doesn't override `device_shares_host_memory()`, so `finish_use()` moves components back with `non_blocking=True` and pins a second host copy. Avoid `--cpu-offload-components` for now.
 - **Long kernels can hang the whole GPU.** The GPU is shared with the desktop. If one compute kernel runs longer than amdgpu's lockup timeout (~10s), the desktop's gfx ring times out and the driver resets the whole GPU. Keep per-request work (resolution × frames) moderate.
 
@@ -38,13 +38,12 @@ Per-model notes (why these settings, memory breakdown, known issues) are in each
 
 | Model | Type | Script | Settings | Decode bs=1 | Accuracy | Status |
 |---|---|---|---|---|---|---|
-| [Qwen3.5-35B-A3B](https://huggingface.co/Qwen/Qwen3.5-35B-A3B) | MoE BF16 | [`llm/run_llm_server.sh`](llm/run_llm_server.sh) (default) | triton attention, ctx 8192 | 9.38 tok/s | MGSM 0.98 | ✅ Recommended |
-| [Qwen3.5-35B-A3B-MXFP4](https://huggingface.co/amd/Qwen3.5-35B-A3B-MXFP4) | MoE MXFP4 | `LLM_MODEL=qwen3.5-35b-a3b-mxfp4` | + [patch](llm/patches/quark-mxfp4-moe-w4a16-triton.patch) ([#41389](https://github.com/sgl-project/sglang/pull/41389)) | 8.37 tok/s (79.7 tok/s batched) | MGSM 0.97 | ✅ With patch |
-| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Dense BF16 | `LLM_MODEL=qwen3.8-27b` | triton attention, ctx 8192 | 2.69 tok/s | GSM8K 0.98 | ✅ Works, slow |
-| [Qwen3.5-35B-A3B-FP8](https://huggingface.co/Qwen/Qwen3.5-35B-A3B-FP8) | MoE FP8 | `LLM_MODEL=qwen3.5-35b-a3b-fp8` | triton attention, ctx 8192 | 2.20 tok/s | MGSM 0.98 | ⚠️ Accurate, ~4x slower than BF16 |
-| [Qwen3.8-27B-Quark-AWQ-INT4-W4A16](https://huggingface.co/amd/Qwen3.8-27B-Quark-AWQ-INT4-W4A16) | Dense INT4 | — | — | — | — | ❌ No Quark W4A16 int4 scheme in sglang |
+| [Qwen3.5-35B-A3B](https://huggingface.co/Qwen/Qwen3.5-35B-A3B) | MoE BF16 | [`llm/qwen3.5-35b-a3b/run_qwen3.5-35b-a3b.sh`](llm/qwen3.5-35b-a3b/run_qwen3.5-35b-a3b.sh) | triton attention, ctx 8192 | 9.38 tok/s | MGSM 0.98 | ✅ Recommended |
+| [Qwen3.5-35B-A3B-MXFP4](https://huggingface.co/amd/Qwen3.5-35B-A3B-MXFP4) | MoE MXFP4 | [`llm/qwen3.5-35b-a3b-mxfp4/run_qwen3.5-35b-a3b-mxfp4.sh`](llm/qwen3.5-35b-a3b-mxfp4/run_qwen3.5-35b-a3b-mxfp4.sh) | + [patch](llm/qwen3.5-35b-a3b-mxfp4/patches/quark-mxfp4-moe-w4a16-triton.patch) ([#41389](https://github.com/sgl-project/sglang/pull/41389)) | 8.37 tok/s (79.7 tok/s batched) | MGSM 0.97 | ✅ With patch |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Dense BF16 | [`llm/qwen3.8-27b/run_qwen3.8-27b.sh`](llm/qwen3.8-27b/run_qwen3.8-27b.sh) | triton attention, ctx 8192 | 2.69 tok/s | GSM8K 0.98 | ✅ Works, slow |
+| [Qwen3.5-35B-A3B-FP8](https://huggingface.co/Qwen/Qwen3.5-35B-A3B-FP8) | MoE FP8 | [`llm/qwen3.5-35b-a3b-fp8/run_qwen3.5-35b-a3b-fp8.sh`](llm/qwen3.5-35b-a3b-fp8/run_qwen3.5-35b-a3b-fp8.sh) | triton attention, ctx 8192 | 2.20 tok/s | MGSM 0.98 | ⚠️ Accurate, ~4x slower than BF16 |
 
-Details, the MXFP4 patch, and why GSM8K 5-shot under-reports the FP8 checkpoint: [`llm/README.md`](llm/README.md).
+Overview, validation script, and why GSM8K 5-shot under-reports the FP8 checkpoint: [`llm/README.md`](llm/README.md). Per-model notes are in each folder.
 
 ## Layout
 
@@ -53,7 +52,12 @@ strix-halo-sglang-cookbook
 ├── diffusion
 │   ├── wan          # Wan2.2 text-to-video (A14B, TI2V-5B) + notes
 │   └── qwen-image   # Qwen-Image text-to-image / editing + notes
-├── llm              # LLM server + validation scripts, MXFP4 patch + notes
+├── llm
+│   ├── qwen3.5-35b-a3b         # MoE BF16 (recommended)
+│   ├── qwen3.5-35b-a3b-mxfp4   # MoE MXFP4 + sglang patch
+│   ├── qwen3.8-27b             # dense BF16
+│   ├── qwen3.5-35b-a3b-fp8     # MoE FP8
+│   └── validate_llm.sh         # launch + accuracy + speed check
 ├── run_docker.sh    # start the SGLang ROCm container
 └── README.md
 ```
@@ -79,7 +83,7 @@ MODELS_DIR=$PWD/models bash run_docker.sh
 bash diffusion/qwen-image/run_qwen_image_2.1.sh
 bash diffusion/wan/run_wan2.2.sh                       # A14B (default)
 WAN_MODEL=ti2v-5b bash diffusion/wan/run_wan2.2.sh     # 5B (slow, see above)
-bash llm/run_llm_server.sh                             # Qwen3.5-35B-A3B on :30000 (OpenAI-compatible)
+bash llm/qwen3.5-35b-a3b/run_qwen3.5-35b-a3b.sh        # Qwen3.5-35B-A3B on :30000 (OpenAI-compatible)
 ```
 
 Outputs are written to `outputs/` next to each script, and a log file is saved next to it.
